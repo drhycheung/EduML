@@ -20,6 +20,15 @@ worth anything.
 squared error. It is transparent, hard to overfit on six inputs, and on this
 dataset surprisingly strong.
 
+**Logistic regression.** The classification counterpart of a straight line.
+Instead of one number, it fits one weighted sum per class, then turns those sums
+into a probability distribution over classes (the *softmax*). It is fitted on
+*standardised* inputs — each feature rescaled to mean 0, standard deviation 1 —
+because its optimiser stalls when features are measured in wildly different
+units (25 extra resource visits and a 0/1 absence flag do not share a scale).
+Standardising also makes the coefficients directly comparable across features,
+which is what the feature-importance table on the page reports.
+
 **Decision tree.** Repeatedly split the data on the single input that best
 separates the outcome, forming a pyramid of if/else rules. A single deep tree
 fits the training data well and generalises poorly.
@@ -27,7 +36,9 @@ fits the training data well and generalises poorly.
 **Gradient boosting.** Build many shallow trees, each fitted to the *errors* of
 the trees so far, and add them together with a small learning rate. This usually
 beats a single tree — but it is not guaranteed to beat a simple linear model,
-especially on small data (§5).
+especially on small data (§5). On this dataset it does not, which is why the page
+deploys the simpler linear and logistic models and shows boosting only as a
+comparison.
 
 **Cross-validation.** Split the data into *k* folds. For each fold, fit on the
 other *k−1* folds and score the held-out fold. Every record is scored exactly
@@ -41,11 +52,11 @@ use *stratified* folds that preserve the class proportions. And because a single
 split is still a small sample, the whole procedure is *repeated* over five
 different seeds; every reported figure is the mean across repeats with a
 **± std**, so a lucky split is visible rather than disguised. One concrete reason
-this matters: across individual splits the dedicated classifier's lead over
-thresholding the regression swings from about −2 to +1 points, in both
-directions, but averaged over repeats the gap is 0.3 points — inside the noise
-(§6). Reporting a single split would have told whichever story that split
-happened to favour.
+this matters: across individual splits, the difference between the logistic
+classifier and simply thresholding the regression output swings by a couple of
+points in both directions, but averaged over repeats the gap is 0.1 points —
+inside the noise (§6). Reporting a single split would have told whichever story
+that split happened to favour.
 
 ## 2. Features
 
@@ -60,23 +71,34 @@ happened to favour.
 
 ## 3. How a prediction is computed in the browser
 
-Each tree is stored as a flat array, five numbers per node:
-`[feature, threshold, left, right, value]`, with `left`/`right` child pointers
-stored as node indices. A leaf is marked by a negative `feature`. Traversal
-follows scikit-learn's rule: `feature <= threshold` goes **left**.
+There are no trees on this page. Both deployed models are exported as plain
+numbers, so the whole forward pass is a handful of additions and multiplications.
+
+**Regression (ordinary least squares).** The model file stores six weights and one
+intercept. The predicted level is just a dot product:
 
 ```
-o = 0
-while array[o] >= 0:
-    o = 5 * (array[o+2] if x[array[o]] <= array[o+1] else array[o+3])
-leaf = array[o+4]
+level = intercept + Σ (weight[j] · x[j])
 ```
 
-The regression output is `init + learning_rate · Σ leaf values`. The classifier
-keeps three such sums (one per class) and takes the largest. `scripts/verify_page.py`
-runs this exact code under Node.js and checks it against an independent Python
-implementation, so "the page agrees with the training code" is a tested claim,
-not an assertion.
+Then it is clamped to the 0–2 range for display.
+
+**Classification (multinomial logistic regression).** The coefficients were fitted
+on standardised features, so the first step is to z-score the input with the
+scaler that travels in the model file:
+
+```
+z[j] = (x[j] − scaler_mean[j]) / scaler_scale[j]
+score[k] = intercept[k] + Σ (weight[k][j] · z[j])      for each class k
+prediction = argmax(score)
+```
+
+The page only needs the argmax, so it does not compute the full softmax; the
+stored coefficients are the softmax's linear scores. `scripts/verify_page.py`
+runs this exact code under Node.js, checks it against an independent Python
+re-implementation, and separately refits both models with scikit-learn to confirm
+the exported numbers reproduce the fit. So "the page agrees with the training
+code" is a tested claim, not an assertion.
 
 ## 4. The prediction interval
 
@@ -102,22 +124,27 @@ authors had done this.
 
 ## 6. Regression vs classification
 
-Thresholding the regression output at 0.5 and 1.5 gives 69.7% ± 0.9% accuracy;
-the dedicated classifier gives 69.3% ± 1.0%. The two are **statistically
-indistinguishable** on this dataset: the 0.3-point gap is well inside the
-±1-point spread across repeated splits — and across individual splits the sign of
-the gap flips. The honest conclusion is not "the classifier is better" but "on
+Thresholding the regression output at 0.5 and 1.5 gives 71.9% ± 0.7% accuracy;
+the multinomial logistic classifier gives 71.8% ± 0.3%. The two are
+**statistically indistinguishable** on this dataset: the 0.1-point gap is well
+inside the spread across repeated splits — and across individual splits the sign
+of the gap flips. The honest conclusion is not "the classifier is better" but "on
 480 rows you cannot tell". "Predict a number, then threshold it" and "classify"
 are genuinely different tasks with different loss functions; whether the extra
-classifier is worth it is a design decision that this data cannot settle.
+classifier is worth it is a design decision that this data cannot settle. The
+page deploys the classifier because it returns probabilities and is better
+calibrated for the marker on the scale, not because it is measurably more
+accurate. Both gradient-boosted variants trail both of these by two to three
+points; that part *is* outside the noise.
 
 ## 7. What was deliberately excluded
 
 The dataset also contains ten demographic and context attributes (gender,
 nationality, place of birth, stage, grade, section, topic, parental relation, and
-two parent-survey answers). Adding them raises accuracy from 0.693 ± 0.010 to
-0.756 ± 0.006 — a real 6.3-point gain — and on their own they reach 0.620 ± 0.009,
-far above the 0.440 majority baseline. They are still excluded. A model keyed on
+two parent-survey answers). Adding them raises accuracy from 0.718 ± 0.003 to
+0.731 ± 0.013 — a modest but real 1.3-point gain — and on their own they reach
+0.547 ± 0.010, ten points above the 0.440 majority baseline. They are still
+excluded. A model keyed on
 who a student *is* rather than what they *do* cannot be acted on by a tutor, and
 deployed for triage it would encode historical group inequity in a decision about
 a named student. A higher score bought that way is worse than a lower honest one.
@@ -126,6 +153,6 @@ a named student. A higher score bought that way is worse than a lower honest one
 
 Prior attainment, motivation, health, home circumstances and teaching quality
 are absent. Engagement indicators are correlates, not causes: a student who opens
-more resources is not *made* more able by the clicking. Roughly 40% of the
+more resources is not *made* more able by the clicking. Roughly 36% of the
 variance in level is unexplained even by the best model here, and that remainder
 is the part that a human tutor still has to handle.

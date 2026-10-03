@@ -20,7 +20,7 @@ HTML = '''<!DOCTYPE html>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>EduML · Learning Analytics At-Risk Prediction Demo</title>
-<meta name="description" content="Enter student engagement and attendance indicators and predict a performance level and a three-band performance class with gradient-boosted trees. Full cross-validated evaluation shown alongside trivial baselines.">
+<meta name="description" content="Enter student engagement and attendance indicators and predict a performance level and a three-band performance class with linear and logistic regression, chosen over gradient-boosted trees on held-out data. Full cross-validated evaluation shown alongside trivial baselines.">
 
 <!--
   EduML — Learning Analytics Prediction Demo
@@ -63,7 +63,7 @@ __CSS__
     <p class="mt-2 text-slate-300 text-sm sm:text-base leading-relaxed max-w-3xl">
       Enter a student&rsquo;s engagement indicators, absence band and semester to obtain a
       predicted performance level and a three-band performance class
-      (Low / Medium / High), using gradient-boosted trees.
+      (Low / Medium / High), using linear and logistic regression.
     </p>
     <p class="mt-3 text-slate-400 text-xs leading-relaxed max-w-3xl">
       <strong class="text-slate-300">Sample size.</strong>
@@ -248,38 +248,27 @@ function buildFeatures(g) {
   ];
 }
 
-/* Forward pass through the regression ensemble.
-   Trees are flat, stride 5: [feature, threshold, left, right, value];
-   a leaf is marked by feature < 0. Child pointers are node indices. */
+/* The deployed regressor is ordinary least squares: level = w . x + b.
+   Six weights and one intercept, evaluated directly. */
 function regPredict(x) {
-  const lr = MODEL.regressor.learning_rate;
-  let out = MODEL.regressor.init;
-  const trees = MODEL.regressor.trees;
-  for (let t = 0; t < trees.length; t++) {
-    const a = trees[t];
-    let o = 0;
-    while (a[o] >= 0) {
-      o = 5 * (x[a[o]] <= a[o + 1] ? a[o + 2] : a[o + 3]);
-    }
-    out += lr * a[o + 4];
-  }
-  return out;
+  const w = MODEL.regressor.weights, b = MODEL.regressor.intercept;
+  let s = b;
+  for (let j = 0; j < w.length; j++) s += w[j] * x[j];
+  return s;
 }
 
-/* Raw additive scores. The page only needs an argmax, so no softmax. */
+/* The deployed classifier is multinomial logistic regression. Its coefficients
+   were fitted on standardised features, so the input is z-scored with the
+   stored mean/scale before the linear scores are formed. The page only needs an
+   argmax, so no softmax is required. */
 function clfScores(x) {
-  const lr = MODEL.classifier.learning_rate;
-  const score = MODEL.classifier.init.slice();
-  const trees = MODEL.classifier.trees;
-  for (let t = 0; t < trees.length; t++) {
-    const a = trees[t].tree;
-    let o = 0;
-    while (a[o] >= 0) {
-      o = 5 * (x[a[o]] <= a[o + 1] ? a[o + 2] : a[o + 3]);
-    }
-    score[trees[t].cls] += lr * a[o + 4];
-  }
-  return score;
+  const c = MODEL.classifier;
+  const z = x.map((v, j) => (v - c.scaler_mean[j]) / c.scaler_scale[j]);
+  return c.weights.map((w, k) => {
+    let s = c.intercept[k];
+    for (let j = 0; j < w.length; j++) s += w[j] * z[j];
+    return s;
+  });
 }
 
 /* Empirical out-of-fold residual percentiles, bucketed by predicted level. */
@@ -367,28 +356,28 @@ function renderMetrics() {
      + 'a number here for teaching; for any real decision, use the classification figures below.</p>'
      + table(['Method', 'R²', 'RMSE', 'MAE'], [
         ['Always predict the training mean (baseline)', ms(M.regression.baseline_mean.r2, 3), ms(M.regression.baseline_mean.rmse, 3), ms(M.regression.baseline_mean.mae, 3)],
-        ['Multiple linear regression', ms(M.regression.linear.r2, 3), ms(M.regression.linear.rmse, 3), ms(M.regression.linear.mae, 3)],
-        ['<strong>Gradient-boosted trees (this page)</strong>', '<strong>' + ms(M.regression.model.r2, 3) + '</strong>', ms(M.regression.model.rmse, 3), ms(M.regression.model.mae, 3)]
+        ['<strong>Multiple linear regression (deployed)</strong>', '<strong>' + ms(M.regression.linear.r2, 3) + '</strong>', ms(M.regression.linear.rmse, 3), ms(M.regression.linear.mae, 3)],
+        ['Gradient-boosted trees (comparison)', ms(M.regression.gbm.r2, 3), ms(M.regression.gbm.rmse, 3), ms(M.regression.gbm.mae, 3)]
      ]) + '</div>';
 
-  const dLin = (M.regression.linear.r2.mean - M.regression.model.r2.mean) * 100;
+  const dReg = (M.regression.linear.r2.mean - M.regression.gbm.r2.mean) * 100;
   h += '<div class="bg-slate-50 border border-slate-200 rounded-lg p-4">'
      + '<p><strong>How to read that table:</strong> the baseline R² is 0 because "always predict the '
      + 'average" cannot explain any variance by construction. Linear regression explains '
      + (M.regression.linear.r2.mean * 100).toFixed(0) + '% of the variance with six coefficients; the '
-     + 'gradient-boosted trees reach ' + (M.regression.model.r2.mean * 100).toFixed(0) + '%. The '
-     + '<em>&plusmn;</em> is the spread across repeated cross-validation splits, so it shows how much of '
-     + 'the difference is just which students happened to land in which fold.</p>'
-     + '<p class="mt-2"><strong>An honest surprise:</strong> here the extra flexibility of boosting does '
-     + '<em>not</em> pay off — it is ' + dLin.toFixed(0) + ' points <em>below</em> plain linear '
-     + 'regression, and the two uncertainty ranges (' + ms(M.regression.linear.r2, 3) + ' vs '
-     + ms(M.regression.model.r2, 3) + ') do not overlap, so this is not a fluke of one split. On a dataset '
-     + 'this small (' + mt.rows_used + ' students), the boosted model has more than enough capacity to '
-     + 'fit noise, and the folds expose that. The lesson is not "boosting is bad" but that '
-     + '<strong>a more complicated model is not automatically a better one</strong>: always put the '
-     + 'simple baseline in the table before you trust the fancy result. Roughly '
-     + ((1 - M.regression.model.r2.mean) * 100).toFixed(0) + '% of the variance is left unexplained in any '
-     + 'case — engagement indicators do not determine outcomes. Prior attainment, motivation and home '
+     + 'gradient-boosted trees reach ' + (M.regression.gbm.r2.mean * 100).toFixed(0) + '% and did not do '
+     + 'better. The <em>&plusmn;</em> is the spread across repeated cross-validation splits, so it shows '
+     + 'how much of any difference is just which students happened to land in which fold.</p>'
+     + '<p class="mt-2"><strong>Why the deployed model is the simple one:</strong> on this data boosting '
+     + 'lands ' + dReg.toFixed(0) + ' points <em>below</em> plain linear regression, and the two '
+     + 'uncertainty ranges (' + ms(M.regression.linear.r2, 3) + ' vs ' + ms(M.regression.gbm.r2, 3) + ') '
+     + 'do not overlap — the simple model wins on the held-out folds, and not by a fluke of one split. On '
+     + 'a dataset this small (' + mt.rows_used + ' students), a boosted ensemble has more than enough '
+     + 'capacity to fit noise, and the folds expose it. The lesson is not "boosting is bad" but that '
+     + '<strong>a more complicated model is not automatically a better one</strong>: the model with the '
+     + 'better held-out score is the one that ships, whatever its name. Roughly '
+     + ((1 - M.regression.linear.r2.mean) * 100).toFixed(0) + '% of the variance is left unexplained in '
+     + 'any case — engagement indicators do not determine outcomes. Prior attainment, motivation and home '
      + 'circumstances do, and none of those are in this file.</p></div>';
 
   h += '<div><h3 class="font-semibold mb-1">Classification task: three-band performance</h3>'
@@ -397,11 +386,16 @@ function renderMetrics() {
      + 'ignores the small classes cannot hide.</p>'
      + table(['Method', 'Accuracy', 'Balanced accuracy', 'Class support'], [
         ['Always predict the majority class (baseline)', pms(M.classification.baseline_majority.acc, 1), '33.3%', M.classification.class_support.join(' / ')],
-        ['<strong>Gradient-boosted classifier (this page)</strong>',
-         '<strong>' + pms(M.classification.model.acc, 1) + '</strong>',
-         pms(M.classification.model.balanced, 1), ''],
-        ['Bands from thresholding the regression output',
-         pms(M.classification.derived_from_regression.acc, 1), '—', '']
+        ['<strong>Multinomial logistic regression (deployed)</strong>',
+         '<strong>' + pms(M.classification.logistic.acc, 1) + '</strong>',
+         pms(M.classification.logistic.balanced, 1), ''],
+        ['Linear regression &rarr; band thresholds',
+         pms(M.classification.linear_regression_threshold.acc, 1), '—', ''],
+        ['Gradient-boosted classifier (comparison)',
+         pms(M.classification.gbm_classifier.acc, 1),
+         pms(M.classification.gbm_classifier.balanced, 1), ''],
+        ['Gradient-boosted regression &rarr; band thresholds',
+         pms(M.classification.gbm_regression_threshold.acc, 1), '—', '']
      ]) + '</div>';
 
   const cm = M.classification.confusion_matrix, cn = mt.class_names;
@@ -425,39 +419,45 @@ function renderMetrics() {
      + 'The model confuses heavily between neighbouring bands — the typical shape of an ordinal '
      + 'education classification task: the boundary between adjacent bands has no sharp definition.</p></div>';
 
-  const aC = M.classification.model.acc, aD = M.classification.derived_from_regression.acc;
-  const dD = (aC.mean - aD.mean) * 100;
+  const aL = M.classification.logistic.acc, aD = M.classification.linear_regression_threshold.acc;
+  const aG = M.classification.gbm_classifier.acc, aGT = M.classification.gbm_regression_threshold.acc;
   h += '<div class="bg-amber-50 border border-amber-300 rounded-lg p-4">'
-     + '<p><strong>A comparison that is easy to overlook:</strong> you can skip the dedicated classifier '
-     + 'and simply push the regression output through the banding thresholds, for '
-     + '<strong>' + pms(aD, 1) + '</strong>. The standalone classifier reaches ' + pms(aC, 1) + '. The '
-     + 'difference is ' + Math.abs(dD).toFixed(1) + ' percentage points — <strong>smaller than the '
-     + '&plusmn;1-point spread of the repeated splits, so the two are statistically indistinguishable '
-     + 'here</strong>. The extra classifier did not reliably buy accuracy on this data. '
-     + '<strong>"Predict a number, then threshold it" and "classify" are different tasks</strong>, but on '
-     + '480 rows you cannot claim one is better. Report the comparison; do not over-read it.</p></div>';
+     + '<p><strong>Two things the table is telling you.</strong> First, the two best classifiers — '
+     + 'multinomial logistic regression (' + pms(aL, 1) + ') and simply pushing the linear-regression '
+     + 'output through the banding thresholds (' + pms(aD, 1) + ') — land within a fraction of a point of '
+     + 'each other, well inside the repeated-split spread. <strong>"Predict a number, then threshold it" '
+     + 'and "classify" are genuinely different tasks, but on 480 rows you cannot claim one beats the '
+     + 'other</strong>. Second, all four models clear the majority baseline by a wide margin, yet the two '
+     + 'gradient-boosted variants (' + pms(aG, 1) + ' and ' + pms(aGT, 1) + ') sit at the bottom of the '
+     + 'class — the same story as the regression table. The simpler model is the better one here, so the '
+     + 'simpler model is the one deployed. Report the comparison; do not over-read it.</p></div>';
 
   const top = M.feature_importance[0][1];
   h += '<div><h3 class="font-semibold mb-1">Feature importance</h3><table class="w-full">';
   M.feature_importance.forEach(pair => {
     h += '<tr><td class="py-1 px-2 w-44 text-xs">' + pair[0] + '</td>'
-       + '<td class="px-2 py-1"><div class="bg-blue-500 rounded" style="height:9px;width:'
+       + '<td class="px-2 py-1"><div class="bg-violet-500 rounded" style="height:9px;width:'
        + (pair[1] / top * 100).toFixed(1) + '%"></div></td>'
        + '<td class="px-2 py-1 num text-xs text-right w-16">' + pair[1].toFixed(3) + '</td></tr>';
   });
-  h += '</table><p class="text-xs text-slate-500 mt-2">The single most important feature is <strong>the '
-     + 'number of course resources visited</strong>, followed by the absence band. This is a familiar result '
-     + 'in learning analytics: <em>behavioural engagement</em> with course materials is among the strongest '
-     + 'early signals of performance. Notice, however, that this is a correlation in one cohort, not proof '
-     + 'that opening more resources causes higher grades.</p></div>';
+  h += '</table><p class="text-xs text-slate-500 mt-2">Bars show the mean absolute <em>standardised</em> '
+     + 'coefficient of the deployed logistic classifier, so they are comparable across features measured '
+     + 'in different units. The strongest signal is the <strong>high-absence band</strong>, closely '
+     + 'followed by <strong>course resources visited</strong>. The underlying coefficients carry the '
+     + 'expected signs: visiting resources and raising hands push a student towards the <em>High</em> '
+     + 'class, a high absence rate pushes towards <em>Low</em>. This is a familiar result in learning '
+     + 'analytics — <em>behavioural engagement</em> with course materials is among the strongest early '
+     + 'signals of performance. Notice, however, that this is a correlation in one cohort, not proof that '
+     + 'opening more resources causes higher grades.</p></div>';
 
   const fEng = M.fairness.engagement_only_acc, fDem = M.fairness.with_demographics_acc;
   h += '<div class="bg-rose-50 border border-rose-300 rounded-lg p-4">'
      + '<p><strong>Attributes deliberately thrown away.</strong> The dataset also carries ten demographic '
      + 'and context attributes — gender, nationality, place of birth, stage, grade, section, topic, '
      + 'parental relation, and the two parent-survey answers. Adding them to the same classifier raises '
-     + 'accuracy from <strong>' + pms(fEng, 1) + '</strong> to <strong>' + pms(fDem, 1) + '</strong>, a real '
-     + 'gain of ' + ((fDem.mean - fEng.mean) * 100).toFixed(1) + ' points. It is nonetheless thrown away, '
+     + 'accuracy from <strong>' + pms(fEng, 1) + '</strong> to <strong>' + pms(fDem, 1) + '</strong>, a '
+     + 'modest but real gain of ' + ((fDem.mean - fEng.mean) * 100).toFixed(1) + ' points. It is '
+     + 'nonetheless thrown away, '
      + 'because that gain comes from <em>who the student is</em>, not from anything a tutor can change: a '
      + 'model keyed on nationality, family or class section predicts the future by repeating the past, and '
      + 'deployed as a triage tool would launder historical group inequity into a decision about a named '
@@ -488,11 +488,13 @@ function renderProvenance() {
     + 'student is, not from what a tutor can change, so a model using them would encode group inequity '
     + 'rather than learning need.</p>',
 
-    '<p><strong>Models (scikit-learn):</strong> regression via GradientBoostingRegressor (n_estimators='
-    + mt.reg_params.n_estimators + ', max_depth=' + mt.reg_params.max_depth + ', learning_rate='
-    + mt.reg_params.learning_rate + '); classification via GradientBoostingClassifier (n_estimators='
-    + mt.clf_params.n_estimators + ', max_depth=' + mt.clf_params.max_depth + ', learning_rate='
-    + mt.clf_params.learning_rate + '). Random seed ' + mt.seed + '.</p>',
+    '<p><strong>Models (scikit-learn):</strong> the deployed regressor is ordinary least squares '
+    + '(LinearRegression); the deployed classifier is multinomial logistic regression fitted on '
+    + 'standardised features (LogisticRegression). Gradient-boosted trees (GradientBoostingRegressor and '
+    + 'GradientBoostingClassifier, max_depth=' + mt.reg_params.max_depth + ', learning rates '
+    + mt.reg_params.learning_rate + ' and ' + mt.clf_params.learning_rate + ') are included only as the '
+    + 'comparison these simpler models had to beat — and did. Random seed ' + mt.seed + ', cross-validation '
+    + 'repeated over ' + mt.cv_repeats + ' seeds.</p>',
 
     '<p><strong>A note on fairness.</strong> A model that predicts risk can also create it, if a tutor stops '
     + 'supporting a student because the model says they are fine, or labels a student because the model says '
