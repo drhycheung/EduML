@@ -4,7 +4,10 @@ Extracts the pure-model core from index.html, runs it under Node.js on a grid
 of synthetic inputs, and compares every output with an independent Python
 re-implementation of the same linear / logistic arithmetic. It also fits the
 same models fresh with scikit-learn and checks the exported weights reproduce
-them, so the JSON cannot silently drift from the code that produced it.
+them, so the JSON cannot silently drift from the code that produced it. Finally
+it checks that every utility class the markup uses is implemented in the
+vendored stylesheet, because that snapshot is fixed: a class added without
+regenerating it yields an unstyled element and no error at all.
 """
 import json, os, re, subprocess, sys
 
@@ -98,3 +101,61 @@ d_clf_b = max(abs(a - b) for a, b in zip(cm['intercept'], sk_logit.intercept_))
 print('max |exported - sklearn| :', max(d_reg_w, d_reg_b, d_clf_w, d_clf_b))
 assert max(d_reg_w, d_reg_b, d_clf_w, d_clf_b) < 1e-9, 'export drifted from sklearn'
 print('OK: exported weights reproduce a fresh scikit-learn fit')
+
+# ---- Stylesheet coverage: the vendored snapshot must implement every class ----
+# src/vendored.css.html is a fixed snapshot, so a utility class used in the
+# markup but absent from it renders as a transparent/unstyled element with no
+# error. This is exactly how the feature-importance bars shipped invisible once.
+CSS = '\n'.join(re.findall(r'<style[^>]*>(.*?)</style>', HTML, re.S))
+
+UTIL = re.compile(r'^(?:(?:hover|sm|md|lg|focus|dark):)?'
+                  r'[a-z][a-z0-9]*(?:-[a-z0-9]+)*(?:/[a-z0-9-]+)*$')
+UTIL_ARBITRARY = re.compile(r'^(?:(?:hover|sm|md|lg|focus|dark):)?'
+                            r'[a-z][a-z0-9-]*-\[[^\]\s]+\]$')
+
+
+def css_classes(css):
+    """Every class selector present in the stylesheet, un-escaped."""
+    return {m.group(1).replace('\\', '')
+            for m in re.finditer(r'\.((?:\\.|[A-Za-z0-9_-])+)', css)}
+
+
+def used_classes(tpl, covered):
+    """Classes the markup relies on: class="..." attributes (also picked up when
+    built inside JS strings) plus every quoted JS string that looks like a class
+    list. A quoted string is treated as a class list only if every token is
+    utility-shaped AND at least one token is a class the stylesheet already
+    implements — without that last test, ordinary prose such as
+    "gradient-boosted trees reach …" is indistinguishable from a class list."""
+    found = set()
+    for attrs in re.findall(r'class="([^"]*)"', tpl):
+        if re.search(r"""[+?()'",]""", attrs):
+            continue
+        found.update(attrs.split())
+    for lit in re.findall(r"'([^'\n]*)'|\"([^\"\n]*)\"", tpl):
+        s = lit[0] or lit[1]
+        toks = s.split()
+        if len(toks) < 2:
+            continue
+        shaped = [UTIL.match(t) or UTIL_ARBITRARY.match(t) for t in toks]
+        if not any(shaped) or not all(shaped):
+            continue
+        if not any(re.search(r'[-:\[]', t) for t in toks):
+            continue
+        if not (set(toks) & covered):
+            continue
+        found.update(toks)
+    for arg in re.findall(r"classList\.(?:add|toggle|remove)\(\s*['\"]([^'\"]+)['\"]", tpl):
+        found.update(arg.split())
+    return {c for c in found if UTIL.match(c) or UTIL_ARBITRARY.match(c)}
+
+
+covered = css_classes(CSS)
+used = used_classes(HTML, covered)
+missing = sorted(used - covered)
+print('\nstylesheet coverage')
+print('classes used             :', len(used))
+print('missing from stylesheet  :', missing)
+assert used, 'class extraction found nothing to check'
+assert not missing, f'unstyled classes in index.html: {missing}'
+print('OK: every class used is implemented in the vendored stylesheet')

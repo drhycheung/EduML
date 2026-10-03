@@ -165,8 +165,9 @@ python3 scripts/verify_page.py    # prove the page still agrees with Python
 `verify_page.py` runs the in-page inference under Node.js on 200 synthetic rows, checks it
 agrees with an independent Python re-implementation, and refits both models with scikit-learn
 to confirm the exported coefficients reproduce them; it exits non-zero on any disagreement
-greater than 1e-9. See the [model notes](docs/model-notes.md) for what it covers and why it
-exists.
+greater than 1e-9. It also fails the build if any CSS class used by the page is missing from
+the vendored stylesheet. See the [model notes](docs/model-notes.md) for what it covers and why
+it exists.
 
 ## 6. Known limitations
 
@@ -189,9 +190,11 @@ Several of these are consequences of the constraints in §3 rather than oversigh
 
 ## 7. Documentation
 
-| Document                               | What it covers                                                                                                                              |
-| -------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------- |
-| **[Model notes](docs/model-notes.md)** | The algorithms from first principles, how the linear/logistic model is serialised, the empirical interval, the JS-vs-Python verification harness, and why the simpler model is deployed over gradient boosting here |
+| Document | What it covers |
+|---|---|
+| **[Vibe-coding guide](docs/vibe-coding.md)** | The design-thinking rationale (why a dashboard that only looks back cannot lead to an action), how the page was built with an AI coding tool, three faults that measurement detected and visual inspection did not, further work for students, and the complete prompt needed to reproduce the page, including how to download the dataset |
+| **[Model notes](docs/model-notes.md)** | **The algorithms explained from first principles** (baseline, linear and logistic regression, decision trees, gradient boosting, cross-validation and stratification), followed by how the linear/logistic model is serialised, the verification harness, the empirical interval, and why the simpler model is deployed over gradient boosting here |
+| **[Dataset card](docs/dataset.md)** | Provenance, every column and the reason it is or is not used, and the data-quality notes (duplicate rows, class imbalance, and the absence band's near-proxy relationship with the label) |
 
 ## 8. Licences & attribution
 
