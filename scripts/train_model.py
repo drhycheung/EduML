@@ -1,7 +1,7 @@
 """Train EduML models on xAPI-Edu-Data and export model/model.json.
 
-Mirrors the EnvML pipeline: a regression target plus a 3-class classifier,
-both gradient-boosted trees, serialised to flat arrays for browser traversal.
+A regression target plus a 3-class classifier, both gradient-boosted trees,
+serialised to flat arrays for browser traversal.
 """
 import json
 import numpy as np

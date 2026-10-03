@@ -1,11 +1,11 @@
-"""Build index.html for EduML: take the vendored CSS from the EnvML page and
-inline model/model.json into the single-file demo."""
+"""Build index.html for EduML: take the vendored CSS snapshot and inline
+model/model.json into the single-file demo."""
 import json, os
 
 HERE = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
-# Vendored Tailwind snapshot (extracted once from the EnvML page) so this
-# repository has zero external dependencies at build time.
+# Vendored Tailwind snapshot (extracted once) so this repository has zero
+# external dependencies at build time.
 with open(os.path.join(HERE, 'src', 'vendored.css.html'), encoding='utf-8') as f:
     CSS = f.read()
 
@@ -36,8 +36,7 @@ HTML = '''<!DOCTYPE html>
 __CSS__
 <!-- ------------------------------------------------------------------
      EduML theme overrides (hand-written), applied after the vendored
-     Tailwind snapshot. Violet identity, deliberately distinct from the
-     blue used by the sibling EnvML demo.
+     Tailwind snapshot. A violet identity for the learning-analytics demo.
      ------------------------------------------------------------------ -->
 <style>
   body { background-color:#f5f3ff !important; }          /* violet-50  */
