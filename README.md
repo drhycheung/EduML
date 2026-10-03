@@ -1,6 +1,6 @@
 # EduML — Learning Analytics At-Risk Prediction Demo
 
-**Live demo (GitHub Pages):** *to be added after publishing*
+**Live demo (GitHub Pages): <https://drhycheung.github.io/EduML/>**
 
 ![EduML demo screenshot](docs/screenshot.png)
 
