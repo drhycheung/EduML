@@ -57,7 +57,8 @@ point.
 | No ML library in the browser                     | scikit-learn's fitted trees exported as `[feature, threshold, left, right, value]` at stride 5                                  |
 | Honest evaluation panel                          | Out-of-fold 5-fold CV metrics, with a predict-the-mean baseline and a linear-regression baseline beside the model               |
 | Prediction interval                              | Empirical 10th–90th percentile of out-of-fold residuals, bucketed by predicted level                                            |
-| An honest loss                                   | The page states that boosting scores *below* plain linear regression here (R² 0.594 vs 0.637) and explains why that is not a bug |
+| An honest loss                                   | The page states that boosting scores *below* plain linear regression here (R² 0.600 vs 0.637) and explains why that is not a bug |
+| Reported with uncertainty                        | Every figure is a mean ± std over repeated stratified cross-validation, so a lucky split cannot masquerade as a result |
 | Task-design comparison                           | Accuracy of direct classification vs. thresholding the regression output                                                        |
 | Feature importance                               | Table with bars, plus a plain-language reading of why resource-visiting dominates                                               |
 | "Load a random real student"                     | 60 held-out rows; shows the model's prediction next to the observed class                                                       |
@@ -107,14 +108,15 @@ important thing on the page.** The dataset also carries ten demographic and cont
 attributes: gender, nationality, place of birth, educational stage, grade, section, topic,
 parental relation, whether a parent answered the survey, and parental school satisfaction.
 
-Adding those ten attributes raises cross-validated accuracy from 0.715 to **0.771**. That
-"improvement" is not something a tutor can act on: the model would be predicting a
-student's outcome from *who they are* — nationality, family, which section they were
-sorted into — rather than from anything support could change. Used to triage real support,
-it would launder historical group inequity into a decision about a named child. The gain is
-bought with group membership, not with learning, so the attributes are dropped and the page
-says so out loud. On their own, the demographics alone reach only 0.631 — close to the
-majority-class baseline — which is the honest measure of how much they explain directly.
+Adding those ten attributes raises cross-validated accuracy from 0.693 ± 0.010 to
+**0.756 ± 0.006**. That "improvement" is not something a tutor can act on: the model would
+be predicting a student's outcome from *who they are* — nationality, family, which section
+they were sorted into — rather than from anything support could change. It is not a thin
+signal either: the ten attributes **on their own** reach 0.620 ± 0.009, far above the 0.440
+majority-class baseline, so they carry real predictive power. Used to triage support, that
+power would launder historical group inequity into a decision about a named child. The gain
+is bought with group membership, not with learning, so the attributes are dropped and the
+page says so out loud.
 
 ## 4. Results
 
@@ -122,29 +124,34 @@ All out-of-fold, 5-fold shuffled cross-validation, seed 42.
 
 **Regression — performance level (Low 0 · Medium 1 · High 2)**
 
-| Method                                | R²        | RMSE  | MAE   |
-| ------------------------------------- | --------- | ----- | ----- |
-| Always predict the training mean      | −0.000    | 0.748 | 0.573 |
-| Multiple linear regression            | **0.637** | 0.450 | 0.365 |
-| **Gradient-boosted trees (the page)** | 0.594     | 0.476 | 0.368 |
+| Method                                | R²              | RMSE            | MAE             |
+| ------------------------------------- | --------------- | --------------- | --------------- |
+| Always predict the training mean      | −0.000 ± 0.000  | 0.748 ± 0.000   | 0.573 ± 0.000   |
+| Multiple linear regression            | **0.637 ± 0.002** | 0.451 ± 0.001 | 0.366 ± 0.001   |
+| **Gradient-boosted trees (the page)** | 0.600 ± 0.012   | 0.473 ± 0.007   | 0.367 ± 0.004   |
 
-Here the *simple* model wins. With only 480 rows and six near-additive inputs, the boosted
-trees have ample capacity to fit sampling noise that does not reappear in the held-out fold,
-so plain linear regression generalises slightly better. Model complexity has to earn its
-keep, and the page reports the loss rather than hiding it. The remaining ~41% of the
-variance is not a modelling failure: engagement is not the same thing as ability.
+Here the *simple* model wins, and the loss is real rather than a lucky split: the two R²
+ranges (0.637 ± 0.002 vs 0.600 ± 0.012) do not overlap across repeats. With only 480 rows
+and six near-additive inputs, the boosted trees have ample capacity to fit sampling noise
+that does not reappear in the held-out fold, so plain linear regression generalises
+slightly better. Model complexity has to earn its keep, and the page reports the loss rather
+than hiding it. The remaining ~40% of the variance is not a modelling failure: engagement is
+not the same thing as ability.
 
 **Classification — three-band performance level** (Low < 0.5 · Medium 0.5–1.5 · High ≥ 1.5)
 
-| Method                                              | Accuracy   | Balanced accuracy |
-| --------------------------------------------------- | ---------- | ----------------- |
-| Always predict the majority class                   | 43.96%     | 50.0%             |
-| **Gradient-boosted classifier (the page)**          | **71.46%** | 72.71%            |
-| Bands derived by thresholding the regression output | 69.58%     | —                 |
+| Method                                              | Accuracy         | Balanced accuracy |
+| --------------------------------------------------- | ---------------- | ----------------- |
+| Always predict the majority class                   | 44.0% ± 0.0%     | 33.3%             |
+| **Gradient-boosted classifier (the page)**          | **69.3% ± 1.0%** | 70.5% ± 1.0%      |
+| Bands derived by thresholding the regression output | 69.7% ± 0.9%     | —                 |
 
-That last row is a design lesson, not a model ranking: a level error of half a band flips
-borderline students, so "predict a number then threshold it" and "classify" are different
-tasks with different error budgets. The full confusion matrix is printed on the page.
+The last two rows are, within the ±1-point spread of the repeated splits, **indistinguishable**
+(69.3% vs 69.7%, a 0.3-point gap). Reporting a single split would have shown a flattering
+1.9-point win for the dedicated classifier — an artefact of seed 42. "Predict a number, then
+threshold it" and "classify" are different tasks, but on 480 rows you cannot claim one beats
+the other. The full confusion matrix — which shows the errors piling up between neighbouring
+bands — is printed on the page.
 
 ## 5. How to run
 
@@ -178,8 +185,9 @@ Several of these are consequences of the constraints in §3 rather than oversigh
 | Limitation                                          | Consequence                                                                                                  |
 | --------------------------------------------------- | ------------------------------------------------------------------------------------------------------------ |
 | Trained **only** on one Kalboard 360 cohort         | Applying it to another institution, age group or platform degrades markedly. It is a demonstration of method, not a live early-warning system |
-| **Demographics and context excluded**               | Caps accuracy at 71.5%; §3 explains why the extra 5.6 points are not worth the fairness cost                  |
-| Engagement inputs only — no prior attainment        | The unexplained ~41% of variance is structural, not fixable by a better learner                               |
+| **Demographics and context excluded**               | Caps accuracy at 69.3%; §3 explains why the extra 6.3 points are not worth the fairness cost                  |
+| Engagement inputs only — no prior attainment        | The unexplained ~40% of variance is structural, not fixable by a better learner                               |
+| Small-n: ~96 students per fold, effect sizes near noise | The classifier and the thresholded regression differ by 0.3 points — inside the ±1-point spread. Treat the ranking of near-tied methods as unsettled |
 | Single-platform training set                        | No claim of generalisation across institutions, sectors or instrument types                                  |
 | Class bands are ordinal level cuts at 0.5 / 1.5     | Adjacent bands have no sharp educational boundary, which is why the confusion matrix is full of near-misses    |
 | Prediction interval is empirical, not probabilistic | It reports where the truth *usually* landed for similar students, not a calibrated 80% credible interval      |

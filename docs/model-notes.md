@@ -35,6 +35,18 @@ once, by a model that never saw it. The figures on the page are these
 out-of-fold scores. This is why the page can claim the numbers are honest: no
 student is scored by a model trained on that student.
 
+**Stratified, repeated cross-validation.** With three classes, an ordinary
+shuffled split can by chance put very few of a small class in a test fold, so we
+use *stratified* folds that preserve the class proportions. And because a single
+split is still a small sample, the whole procedure is *repeated* over five
+different seeds; every reported figure is the mean across repeats with a
+**± std**, so a lucky split is visible rather than disguised. One concrete reason
+this matters: across individual splits the dedicated classifier's lead over
+thresholding the regression swings from about −2 to +1 points, in both
+directions, but averaged over repeats the gap is 0.3 points — inside the noise
+(§6). Reporting a single split would have told whichever story that split
+happened to favour.
+
 ## 2. Features
 
 | Feature | Meaning |
@@ -76,8 +88,9 @@ than a formula that assumes a distribution the data may not follow.
 
 ## 5. Why boosting loses to linear regression here
 
-On the regression task the boosted trees score **R² = 0.594**, below plain
-multiple linear regression at **0.637**. This is not a bug. With only 480
+On the regression task the boosted trees score **R² = 0.600 ± 0.012**, below
+plain multiple linear regression at **0.637 ± 0.002**. This is not a bug, and not
+a lucky split: the two ranges do not overlap across repeats. With only 480
 students and six fairly additive inputs, the boosted model has ample capacity to
 fit sampling noise that does not reappear in the held-out fold. The linear model
 cannot do that, so it generalises slightly better.
@@ -89,16 +102,30 @@ authors had done this.
 
 ## 6. Regression vs classification
 
-Thresholding the regression output at 0.5 and 1.5 gives 69.6% accuracy; the
-dedicated classifier gives 71.5%. The gap comes from borderline students whose
-regression output sits near a boundary. "Predict a number, then threshold it" and
-"classify" are different tasks with different loss functions — choosing between
-them is a design decision, not a contest.
+Thresholding the regression output at 0.5 and 1.5 gives 69.7% ± 0.9% accuracy;
+the dedicated classifier gives 69.3% ± 1.0%. The two are **statistically
+indistinguishable** on this dataset: the 0.3-point gap is well inside the
+±1-point spread across repeated splits — and across individual splits the sign of
+the gap flips. The honest conclusion is not "the classifier is better" but "on
+480 rows you cannot tell". "Predict a number, then threshold it" and "classify"
+are genuinely different tasks with different loss functions; whether the extra
+classifier is worth it is a design decision that this data cannot settle.
 
-## 7. What the model does *not* know
+## 7. What was deliberately excluded
+
+The dataset also contains ten demographic and context attributes (gender,
+nationality, place of birth, stage, grade, section, topic, parental relation, and
+two parent-survey answers). Adding them raises accuracy from 0.693 ± 0.010 to
+0.756 ± 0.006 — a real 6.3-point gain — and on their own they reach 0.620 ± 0.009,
+far above the 0.440 majority baseline. They are still excluded. A model keyed on
+who a student *is* rather than what they *do* cannot be acted on by a tutor, and
+deployed for triage it would encode historical group inequity in a decision about
+a named student. A higher score bought that way is worse than a lower honest one.
+
+## 8. What the model does *not* know
 
 Prior attainment, motivation, health, home circumstances and teaching quality
 are absent. Engagement indicators are correlates, not causes: a student who opens
-more resources is not *made* more able by the clicking. Roughly 41% of the
+more resources is not *made* more able by the clicking. Roughly 40% of the
 variance in level is unexplained even by the best model here, and that remainder
 is the part that a human tutor still has to handle.
