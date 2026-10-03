@@ -34,6 +34,24 @@ HTML = '''<!DOCTYPE html>
   It is one file and it works by double-clicking it, offline, from disk.
 -->
 __CSS__
+<!-- ------------------------------------------------------------------
+     EduML theme overrides (hand-written), applied after the vendored
+     Tailwind snapshot. Violet identity, deliberately distinct from the
+     blue used by the sibling EnvML demo.
+     ------------------------------------------------------------------ -->
+<style>
+  body { background-color:#f5f3ff !important; }          /* violet-50  */
+  .bg-ink-900 { background-color:#2e1065 !important; }   /* deep violet header */
+  .text-ink-800 { color:#312e81 !important; }            /* indigo-900 body ink */
+  .text-blue-700 { color:#6d28d9 !important; }           /* violet-700 */
+  .bg-blue-500 { background-color:#8b5cf6 !important; }  /* violet-500 */
+  .bg-blue-600 { background-color:#7c3aed !important; }  /* violet-600 */
+  .border-blue-600 { border-color:#8b5cf6 !important; }
+  .text-blue-600 { color:#7c3aed !important; }
+  input[type="range"] { accent-color:#7c3aed; }
+  * { --tw-ring-color:rgb(124 58 237 / 0.45); }
+  ::selection { background:#ddd6fe; color:#2e1065; }
+</style>
 </head>
 <body class="bg-slate-100 text-ink-800">
 
