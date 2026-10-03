@@ -1,6 +1,6 @@
 # Student Performance Prediction Demo (Learning Analytics Teaching Demo)
 
-**Live demo (GitHub Pages): <https://drhycheung.github.io/EduML/>**
+**Live demo (GitHub Pages): https://drhycheung.github.io/EduML/**
 
 ![Student Performance Prediction Demo screenshot](docs/screenshot.png)
 
@@ -29,6 +29,8 @@ A user must be able to set a student's profile and get a prediction. A tool that
 replay historical rows has quietly become a dashboard; that distinction is the teaching
 point.
 
+---
+
 ## 2. What the page does
 
 | Feature                                          | Implementation                                                                                                                  |
@@ -51,6 +53,8 @@ point.
 > explains baselines, linear regression, decision trees, gradient boosting and
 > cross-validation from first principles, and traces a real prediction through the
 > exported coefficients.
+
+---
 
 ## 3. Data, and the attributes that had to go
 
@@ -100,6 +104,8 @@ that signal would launder historical group inequity into a decision about a name
 gain is bought with group membership, not with learning, so the attributes are dropped and
 the page says so out loud.
 
+---
+
 ## 4. Results
 
 All out-of-fold, 5-fold stratified cross-validation repeated over 5 seeds. Every figure is
@@ -141,6 +147,8 @@ the regression table. The page deploys the logistic classifier (chosen over thre
 its calibration and because it comes with probabilities); the full confusion matrix — which
 shows the errors piling up between neighbouring bands — is printed on the page.
 
+---
+
 ## 5. How to run
 
 - **Students, teachers, anyone**: double-click `index.html`. It needs nothing else —
@@ -169,6 +177,8 @@ greater than 1e-9. It also fails the build if any CSS class used by the page is 
 the vendored stylesheet. See the [model notes](docs/model-notes.md) for what it covers and why
 it exists.
 
+---
+
 ## 6. Known limitations
 
 Several of these are consequences of the constraints in §3 rather than oversights:
@@ -188,6 +198,8 @@ Several of these are consequences of the constraints in §3 rather than oversigh
 | `src/vendored.css.html` is a vendored snapshot      | Adding a new utility class without regenerating it yields an unstyled element; `verify_page.py` fails the build to stop this |
 | Desktop-first layout                                | Tested at 390 px and 1280 px with no horizontal overflow, but not a full mobile design                        |
 
+---
+
 ## 7. Documentation
 
 | Document | What it covers |
@@ -196,7 +208,9 @@ Several of these are consequences of the constraints in §3 rather than oversigh
 | **[Model notes](docs/model-notes.md)** | **The algorithms explained from first principles** (baseline, linear and logistic regression, decision trees, gradient boosting, cross-validation and stratification), followed by how the linear/logistic model is serialised, the verification harness, the empirical interval, and why the simpler model is deployed over gradient boosting here |
 | **[Dataset card](docs/dataset.md)** | Provenance, every column and the reason it is or is not used, and the data-quality notes (duplicate rows, class imbalance, and the absence band's near-proxy relationship with the label) |
 
-## 8. Licences & attribution
+---
+
+## 8. Licences and attribution
 
 - **Code**: MIT — see [LICENSE](LICENSE), © 2026 drhycheung.
 - **Data**: [xAPI-Edu-Data (Kalboard 360)](https://www.kaggle.com/datasets/aljarah/xAPI-Edu-Data)

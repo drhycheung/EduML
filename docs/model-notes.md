@@ -1,4 +1,4 @@
-# Model notes (EduML)
+# Model notes: the algorithms, and how the model reaches the browser
 
 This page does two things at once, and it is worth separating them:
 

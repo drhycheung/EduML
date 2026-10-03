@@ -25,15 +25,13 @@ SOFTWARE.
 DATA ATTRIBUTION
 
 The model weights embedded in this project (model/model.json, and the model data
-inlined into index.html) were trained from data/beijing_pm25.csv, obtained from
-the UCI Machine Learning Repository and published under CC BY 4.0, copyright of
-the original authors:
+inlined into index.html) were trained from data/xAPI-Edu-Data.csv, obtained from
+Kaggle and published under CC BY-SA 4.0, copyright of the original authors:
 
-  Song, C., Zhou, Y., Lu, J., & Qi, J. (2016).
-  Detecting Outliers in Beijing's PM2.5: A Data Mining Approach Based on PM2.5
-  Five Years of Data in Beijing. ISPRS International Journal of Geo-Information,
-  5(4), 48.
+  Amrieh, E. A., Hamtini, T., & Aljarah, I. (2016). Mining Educational Data to
+  Predict Student's Academic Performance using Ensemble Methods. International
+  Journal of Database Theory and Application, 9(8), 119-136.
 
 The dataset and this project's code are separately licensed: the code is MIT, the
-data is CC BY 4.0. The MIT licence above applies to the code only and does not
+data is CC BY-SA 4.0. The MIT licence above applies to the code only and does not
 extend to the dataset.
