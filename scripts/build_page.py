@@ -436,7 +436,7 @@ function renderMetrics() {
   h += '<div><h3 class="font-semibold mb-1">Feature importance</h3><table class="w-full">';
   M.feature_importance.forEach(pair => {
     h += '<tr><td class="py-1 px-2 w-44 text-xs">' + pair[0] + '</td>'
-       + '<td class="px-2 py-1"><div class="bg-violet-500 rounded" style="height:9px;width:'
+       + '<td class="px-2 py-1"><div class="bg-blue-500 rounded" style="height:9px;width:'
        + (pair[1] / top * 100).toFixed(1) + '%"></div></td>'
        + '<td class="px-2 py-1 num text-xs text-right w-16">' + pair[1].toFixed(3) + '</td></tr>';
   });
